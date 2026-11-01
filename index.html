@@ -101,11 +101,12 @@ button{font-family:inherit;cursor:pointer}
 <body>
 <div id="app"></div>
 <script>
-const SK="happiness-v5";
-const START="2026-08-23";
-const TDAYS=365;
-const SEASON_LEN=90;
-const SEASON_NAMES=["LOCK IN 01","LOCK IN 02","LOCK IN 03","LOCK IN 04"];
+const SK="lockin-14d-v1";
+const SK_PREV="happiness-v5";
+const START="2026-11-02";
+const TDAYS=14;
+const SEASON_LEN=14;
+const SEASON_NAMES=["NEXT 14 DAYS"];
 const URGE_TYPES=[
   {id:"nicotine",emoji:"\u{1F6AC}",label:"Nicotine"},
   {id:"food",emoji:"\u{1F354}",label:"Food"},
@@ -129,13 +130,15 @@ const PAUSE_SLIDES=[
   {h:"Keep the bigger life in sight.",b:"The stress, craving, or discomfort you\u2019re feeling right now will pass. Don\u2019t let a temporary feeling make a decision for the person you want to be five years from now."},
 ];
 const SEASON_GOALS=[
-  "\u{1F6AD} Stay nicotine-free",
-  "\u{1F3CB}\u{FE0F} Get leaner",
-  "\u{1F4BC} Take control of Stella",
-  "\u{1F916} Launch AI Bootcamp",
-  "\u{1F4B0} Stop increasing debt",
-  "\u{1F3AC} Build content consistently",
-  "\u{1F48D} Increase marriage opportunities",
+  "\u{1F957} No junk food",
+  "\u{1F3CB}\u{FE0F} 10 gym visits",
+  "\u{1F512} No fapping",
+  "\u{1F4DA} Set up the course",
+  "\u{1F4CA} Stella dashboards",
+  "\u{1F3AC} Post 10 videos",
+  "\u{1F4BC} Main Stella work",
+  "\u{1F4DD} Quelo docs and meet Khaled",
+  "\u{1F9E0} Technical ecosystem",
 ];
 function getDateFromSeasonDay(seasonNum,seasonDay){
   return d2s((seasonNum-1)*SEASON_LEN+seasonDay);
@@ -176,25 +179,22 @@ const EMOJIS=["💪","❤️","💍","💰","🧘","🎯","⭐","🧠","🏆","�
 const HABIT_EMOJIS=["🏋️","🧊","🥗","🚭","🥬","💍","💼","🎬","🚀","🧘","📖","💧","🚶","🎵","📝","⭐"];
 
 const DEF_GOALS=[
-  {id:"g1",name:"Have a great body",emoji:"💪"},
-  {id:"g2",name:"Be healthy",emoji:"❤️"},
-  {id:"g3",name:"Find a wife",emoji:"💍"},
-  {id:"g4",name:"Make money",emoji:"💰"},
-  {id:"g5",name:"Mental peace",emoji:"🧘"},
+  {id:"g1",name:"Health",emoji:"💪"},
+  {id:"g2",name:"Stella",emoji:"💼"},
+  {id:"g3",name:"Content and Course",emoji:"🎬"},
+  {id:"g4",name:"Quelo",emoji:"📝"},
+  {id:"g5",name:"Tech",emoji:"🧠"},
 ];
 const DEF_HABITS=[
-  {id:"h1",label:"Get my workout in",emoji:"🏋️",goalIds:["g1"],perWeek:5,linkedHabitId:null},
-  {id:"h2",label:"Recovery",emoji:"🧊",goalIds:["g1"],perWeek:2,linkedHabitId:"h1"},
-  {id:"h3",label:"Macros & calories on target",emoji:"🥗",goalIds:["g1"],perWeek:7,linkedHabitId:null},
-  {id:"h4",label:"Did not smoke",emoji:"🚭",goalIds:["g2"],perWeek:7,linkedHabitId:null},
-  {id:"h5",label:"Eat clean",emoji:"🥬",goalIds:["g2"],perWeek:7,linkedHabitId:null},
-  {id:"h6",label:"Put in work to find the wife",emoji:"💍",goalIds:["g3"],perWeek:7,linkedHabitId:null},
-  {id:"h7",label:"Stella work",emoji:"💼",goalIds:["g4"],perWeek:4,linkedHabitId:null},
-  {id:"h8",label:"Content work",emoji:"🎬",goalIds:["g4"],perWeek:4,linkedHabitId:null},
-  {id:"h9",label:"New project work",emoji:"🚀",goalIds:["g4"],perWeek:4,linkedHabitId:null},
-  {id:"h10",label:"Meditate 5 min",emoji:"🧘",goalIds:["g5"],perWeek:7,linkedHabitId:null},
-  {id:"h11",label:"Read mantras",emoji:"📿",goalIds:["g5"],perWeek:7,linkedHabitId:null},
-  {id:"h12",label:"Reading / learning",emoji:"📖",goalIds:["g3","g4","g5"],perWeek:5,linkedHabitId:null},
+  {id:"h1",label:"No junk food",emoji:"🥗",goalIds:["g1"],perWeek:7,linkedHabitId:null},
+  {id:"h2",label:"10 gym visits",emoji:"🏋️",goalIds:["g1"],perWeek:5,linkedHabitId:null},
+  {id:"h3",label:"No fapping",emoji:"🔒",goalIds:["g1"],perWeek:7,linkedHabitId:null},
+  {id:"h4",label:"Set up the course",emoji:"📚",goalIds:["g3"],perWeek:7,linkedHabitId:null},
+  {id:"h5",label:"Stella dashboards",emoji:"📊",goalIds:["g2"],perWeek:7,linkedHabitId:null},
+  {id:"h6",label:"Post 10 videos",emoji:"🎬",goalIds:["g3"],perWeek:7,linkedHabitId:null},
+  {id:"h7",label:"Main Stella work",emoji:"💼",goalIds:["g2"],perWeek:7,linkedHabitId:null},
+  {id:"h8",label:"Quelo docs and meet Khaled",emoji:"📝",goalIds:["g4"],perWeek:7,linkedHabitId:null},
+  {id:"h9",label:"Technical ecosystem",emoji:"🧠",goalIds:["g5"],perWeek:7,linkedHabitId:null},
 ];
 const DEF_MANTRAS=[
   {id:"m1",text:"I am in control of my day"},
@@ -215,9 +215,29 @@ function getWeekStart(ds){const d=new Date(ds+"T00:00:00");const day=d.getDay();
 function getWeekDates(ds){const ws=getWeekStart(ds);const dates=[];for(let i=0;i<7;i++){const d=new Date(ws+"T00:00:00");d.setDate(d.getDate()+i);dates.push(fmt(d))}return dates}
 function getMonthDates(ds){const d=new Date(ds+"T00:00:00");const y=d.getFullYear(),m=d.getMonth();const dates=[];const first=new Date(y,m,1);const last=new Date(y,m+1,0);for(let i=first.getDate();i<=last.getDate();i++){dates.push(fmt(new Date(y,m,i)))}return dates}
 function getQuarterDates(ds){const d=new Date(ds+"T00:00:00");const m=d.getMonth();const qStart=m-m%3;const dates=[];for(let mo=qStart;mo<qStart+3;mo++){const y=d.getFullYear();const last=new Date(y,mo+1,0).getDate();for(let i=1;i<=last;i++)dates.push(fmt(new Date(y,mo,i)))}return dates}
+function inSprint(ds){const n=dn(ds);return n>=1&&n<=TDAYS}
+function sprintDates(){const dates=[];for(let i=1;i<=TDAYS;i++)dates.push(d2s(i));return dates}
 
 // Data
-function load(){try{const r=localStorage.getItem(SK);if(r){const d=JSON.parse(r);if(!d.mantras)d.mantras=DEF_MANTRAS.map(m=>({...m}));if(!d.trophies)d.trophies=[];if(!d.theme)d.theme="auto";if(!d.nicotineStart)d.nicotineStart=null;d.habits.forEach(h=>{if(h.goalId&&!h.goalIds){h.goalIds=[h.goalId];delete h.goalId}if(!h.goalIds)h.goalIds=[]});if(!d.habits.find(h=>h.id==="h12"))d.habits.push({id:"h12",label:"Reading / learning",emoji:"\u{1F4D6}",goalIds:["g3","g4","g5"],perWeek:5,linkedHabitId:null});return d}}catch(e){}return{goals:DEF_GOALS.map(g=>({...g})),habits:DEF_HABITS.map(h=>({...h})),mantras:DEF_MANTRAS.map(m=>({...m})),trophies:[],days:{},theme:"auto",nicotineStart:null,v:6}}
+function freshData(){return{goals:DEF_GOALS.map(g=>({...g})),habits:DEF_HABITS.map(h=>({...h})),mantras:DEF_MANTRAS.map(m=>({...m})),trophies:[],days:{},theme:"auto",nicotineStart:null,v:7}}
+function normalizeData(d){if(!d.mantras)d.mantras=DEF_MANTRAS.map(m=>({...m}));if(!d.trophies)d.trophies=[];if(!d.theme)d.theme="auto";if(!d.nicotineStart)d.nicotineStart=null;if(!d.days)d.days={};(d.habits||[]).forEach(h=>{if(h.goalId&&!h.goalIds){h.goalIds=[h.goalId];delete h.goalId}if(!h.goalIds)h.goalIds=[]});return d}
+function load(){
+  try{const r=localStorage.getItem(SK);if(r)return normalizeData(JSON.parse(r))}catch(e){}
+  const data=freshData();
+  // New key starts the sprint clean. Vision photos and mantras live in the same blob, so copy those from the previous key.
+  let carried=false;
+  try{
+    const prev=localStorage.getItem(SK_PREV);
+    if(prev){
+      const old=JSON.parse(prev);
+      if(Array.isArray(old.trophies)&&old.trophies.length){data.trophies=old.trophies;carried=true}
+      if(Array.isArray(old.mantras)&&old.mantras.length){data.mantras=old.mantras;carried=true}
+      if(old.theme){data.theme=old.theme;carried=true}
+    }
+  }catch(e){}
+  if(carried){try{localStorage.setItem(SK,JSON.stringify(data))}catch(e){}}
+  return data;
+}
 function save(d){try{localStorage.setItem(SK,JSON.stringify(d))}catch(e){alert("Storage full \u2014 could not save. Try removing a few photos or exporting a backup first.")}}
 function exp(d){const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download="happiness-"+today()+".json";a.click();URL.revokeObjectURL(u)}
 function imp(cb){const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.goals&&d.habits){cb(d)}else alert("Invalid file.")}catch(er){alert("Error.")}};r.readAsText(f)};i.click()}
@@ -762,8 +782,12 @@ function getDayPct(data,ds){
 }
 function getPeriodDates(ds,period){
   if(period==="week")return getWeekDates(ds);
-  if(period==="month")return getMonthDates(ds);
-  return getQuarterDates(ds);
+  if(period==="month"){
+    const dates=getMonthDates(ds).filter(inSprint);
+    return dates.length?dates:sprintDates();
+  }
+  // A 14-day sprint has no separate quarter. The sprint itself is the long view.
+  return sprintDates();
 }
 function habitPeriodPct(data,hid,ds,period){
   const dates=getPeriodDates(ds,period);
@@ -1098,14 +1122,15 @@ function render(){
 
   // Period toggle
   o+='<div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px">';
-  ["week","month","quarter"].forEach(p=>{
-    o+='<button class="period-btn'+(period===p?" active":"")+'" onclick="set({period:\''+p+'\'})">'+p.charAt(0).toUpperCase()+p.slice(1)+'</button>';
+  [{k:"week",l:"Week"},{k:"month",l:"Month"},{k:"quarter",l:"Sprint"}].forEach(p=>{
+    o+='<button class="period-btn'+(period===p.k?" active":"")+'" onclick="set({period:\''+p.k+'\'})">'+p.l+'</button>';
   });
   o+='</div>';
 
   // Period label
   const pDates=getPeriodDates(sel,period);
-  const pLabel=period==="week"?"Week of "+fmtShort(pDates[0]):period==="month"?new Date(sel+"T00:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"}):("Q"+Math.ceil((new Date(sel+"T00:00:00").getMonth()+1)/3)+" "+new Date(sel+"T00:00:00").getFullYear());
+  const sprintAll=sprintDates();
+  const pLabel=period==="week"?"Week of "+fmtShort(pDates[0]||START):period==="month"?new Date((pDates[0]||sel)+"T00:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"}):("Sprint \u00B7 "+fmtShort(sprintAll[0])+" \u2013 "+fmtShort(sprintAll[sprintAll.length-1]));
   o+='<div style="text-align:center;font-size:13px;color:var(--muted);font-weight:600;margin-bottom:16px">'+pLabel+'</div>';
 
   // Goal progress
@@ -1155,7 +1180,7 @@ function render(){
     o+='<div style="font-size:36px;margin-bottom:8px">\u{1F451}</div>';
     o+='<div style="font-size:16px;font-weight:800;color:#10b981;margin-bottom:6px">You\u2019re crushing it!</div>';
     o+='<div style="font-size:13px;color:var(--muted);line-height:1.5">Every habit is on track this week. ';
-    o+=daysLeft>0?weeksLeft+' week'+(weeksLeft!==1?"s":"")+' left in your year \u2014 keep this energy.':'This is your final week. Finish strong.';
+    o+=daysLeft>0?weeksLeft+' week'+(weeksLeft!==1?"s":"")+' left in this sprint \u2014 keep this energy.':'Last day of the sprint. Finish strong.';
     o+='</div>';
     if(killing.length>0){
       o+='<div style="margin-top:12px;font-size:12px;color:var(--muted)">\u{1F525} Perfect this week: ';
@@ -1204,7 +1229,7 @@ function render(){
     // Journey reminder
     o+='<div class="card" style="margin-top:6px;text-align:center;padding:12px">';
     o+='<div style="font-size:12px;color:var(--muted);line-height:1.5">';
-    o+=daysLeft>0?'\u{1F5D3}\u{FE0F} '+daysLeft+' days left ('+weeksLeft+' weeks) \u2014 every week you improve is a win':'\u{1F3C1} Final stretch \u2014 finish strong';
+    o+=daysLeft>0?'\u{1F5D3}\u{FE0F} '+daysLeft+' days left in this sprint ('+weeksLeft+' week'+(weeksLeft!==1?"s":"")+') \u2014 every week you improve is a win':'\u{1F3C1} Last day of the sprint \u2014 finish strong';
     o+='</div></div>';
   }
 
@@ -1439,23 +1464,22 @@ function render(){
 
   // Filter buttons
   o+='<div style="display:flex;gap:6px;margin-bottom:12px">';
-  [{k:"week",l:"Week"},{k:"month",l:"Month"},{k:"quarter",l:"Quarter"},{k:"year",l:"Year"}].forEach(f=>{
+  [{k:"week",l:"Week"},{k:"month",l:"Month"},{k:"quarter",l:"Sprint"}].forEach(f=>{
     const active=S.hf===f.k;
     o+='<button onclick="set({hf:\''+f.k+'\'})" class="period-btn'+(active?" active":"")+'">'+f.l+'</button>';
   });
   o+='</div>';
 
-  // Compute dates based on filter (going backward from today)
-  const hToday=new Date(today()+"T00:00:00");
+  // History stays inside the sprint. Week is the current Mon–Sun overlap; month is the sprint days in this month; sprint is all 14 days.
   let hDates=[];
   if(S.hf==="week"){
-    for(let i=6;i>=0;i--){const d=new Date(hToday);d.setDate(d.getDate()-i);hDates.push(fmt(d))}
+    hDates=getWeekDates(today()).filter(inSprint);
+    if(!hDates.length)hDates=getWeekDates(START).filter(inSprint);
   } else if(S.hf==="month"){
-    for(let i=29;i>=0;i--){const d=new Date(hToday);d.setDate(d.getDate()-i);hDates.push(fmt(d))}
-  } else if(S.hf==="quarter"){
-    for(let i=89;i>=0;i--){const d=new Date(hToday);d.setDate(d.getDate()-i);hDates.push(fmt(d))}
+    hDates=getMonthDates(today()).filter(inSprint);
+    if(!hDates.length)hDates=sprintDates();
   } else {
-    for(let i=364;i>=0;i--){const d=new Date(hToday);d.setDate(d.getDate()-i);hDates.push(fmt(d))}
+    hDates=sprintDates();
   }
 
   // Summary stats for this period
@@ -1473,7 +1497,7 @@ function render(){
   o+='</div>';
 
   // Grid - adaptive columns based on date count
-  const cols=S.hf==="week"?7:S.hf==="month"?7:S.hf==="quarter"?10:12;
+  const cols=7;
   o+='<div class="card" style="padding:12px"><div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:3px">';
   hDates.forEach(ds=>{
     const n=dn(ds);const has=!!data.days[ds];
@@ -1487,7 +1511,7 @@ function render(){
       else o+=dd;
     } else {
       o+=dd;
-      if(has&&!isSel&&S.hf!=="quarter")o+='<div style="font-size:7px">'+m.emoji+'</div>';
+      if(has&&!isSel&&S.hf!=="year")o+='<div style="font-size:7px">'+m.emoji+'</div>';
     }
     o+='</button>';
   });

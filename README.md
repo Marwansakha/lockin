@@ -2,7 +2,7 @@
 
 A personal habit and alignment tracker built as a single self-contained HTML file. No build step, no dependencies, no backend — open it in a browser and it works.
 
-Live app: add your GitHub Pages or Netlify URL here once deployed.
+Live app: https://marwan-lockin.netlify.app
 
 ## What it does
 
@@ -12,7 +12,7 @@ The app is built around a daily decision rather than a checklist. Each morning i
 
 **Today** — Season header, the day's choice, an animated alignment percentage, and your habits as a flat list with goal tags. Each habit tracks progress against a weekly target rather than demanding daily perfection.
 
-**Goals and habits** — Habits belong to any number of goals, so "Reading / learning" can feed Find a wife, Make money and Mental peace at once. Habits can also auto-check each other: ticking Recovery ticks Workout, since recovery days replace training days.
+**Goals and habits** — Habits belong to any number of goals, so one daily habit can feed more than one group. Habits can also auto-check each other when a linked habit is set.
 
 **PAUSE** — A floating HOLD button for the moment before giving in. Pick what you're facing, move manually through three vision photos with their messages, then sit through a ten-minute hold timer before deciding. Logs whether you resisted.
 
@@ -20,7 +20,7 @@ The app is built around a daily decision rather than a checklist. Each morning i
 
 **Vision gallery** — Photos of the people and the life you're building. Mark photos as family and they're reserved for the final frame of the morning sequence.
 
-**Stats** — Weekly, monthly and quarterly views with an on-track gauge and recommendations that name the specific habits falling behind.
+**Stats** — Weekly, monthly, and full-sprint views with an on-track gauge and recommendations that name the specific habits falling behind. The sprint is 14 days, so the long view is the sprint itself rather than a quarter or a year.
 
 ## Running it
 
@@ -32,7 +32,9 @@ On a phone, open the URL and use Add to Home Screen. It behaves like a native ap
 
 ## Data
 
-Everything lives in the browser's `localStorage` under the key `happiness-v5`. Nothing is sent anywhere.
+Everything lives in the browser's `localStorage` under the key `lockin-14d-v1`. Nothing is sent anywhere.
+
+The first time this key is empty, the app copies the vision gallery and mantras (and the theme choice) from the previous key `happiness-v5`, then saves them under `lockin-14d-v1`. Habits, goals, and day history start clean so the sprint is a fresh run. Export and import still move the whole data file, so an older backup can be restored on purpose.
 
 That means data is tied to one browser on one device. **Export a backup regularly** from Settings → Data → Export; it downloads a JSON file you can import on another device or restore after clearing site data. Photos are stored as base64 and dominate the storage budget, so if saving starts failing you'll see an explicit warning rather than silent data loss.
 
@@ -42,10 +44,10 @@ Values worth knowing, near the top of the script block:
 
 | Constant | Purpose |
 |---|---|
-| `START` | First day of day 1. Currently `2026-08-23`. |
-| `SEASON_LEN` | Days per season (90). |
-| `TDAYS` | Total tracked days (365). |
-| `SK` | localStorage key. Changing it starts fresh. |
+| `START` | First day of the sprint. Currently `2026-11-02` (last day `2026-11-15`). |
+| `SEASON_LEN` | Days in the sprint (14). |
+| `TDAYS` | Total tracked days (14). |
+| `SK` | localStorage key. Currently `lockin-14d-v1`. Changing it starts fresh. |
 | `CINE_SLIDES` | The five morning messages. |
 | `PAUSE_SLIDES` | The three PAUSE messages. |
 | `SEASON_GOALS` | Season context list. |
