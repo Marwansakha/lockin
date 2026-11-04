@@ -1,0 +1,12 @@
+{
+  "name": "lockin",
+  "private": true,
+  "type": "module",
+  "description": "Lock In habit tracker. The app is index.html. Netlify Functions sync remote updates.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.4"
+  }
+}

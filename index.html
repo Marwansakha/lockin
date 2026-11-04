@@ -100,9 +100,12 @@ button{font-family:inherit;cursor:pointer}
 </head>
 <body>
 <div id="app"></div>
+<script src="sync-merge.js"></script>
 <script>
 const SK="lockin-14d-v1";
 const SK_PREV="happiness-v5";
+const SK_BACKUP="lockin-14d-v1-presync-backup";
+const SYNC_STATE_KEY="lockin-sync-v1";
 const START="2026-11-02";
 const TDAYS=14;
 const SEASON_LEN=14;
@@ -238,12 +241,121 @@ function load(){
   if(carried){try{localStorage.setItem(SK,JSON.stringify(data))}catch(e){}}
   return data;
 }
-function save(d){try{localStorage.setItem(SK,JSON.stringify(d))}catch(e){alert("Storage full \u2014 could not save. Try removing a few photos or exporting a backup first.")}}
+function save(d){try{localStorage.setItem(SK,JSON.stringify(d));return true}catch(e){alert("Storage full \u2014 could not save. Try removing a few photos or exporting a backup first.");return false}}
+function loadSyncState(){
+  try{const r=localStorage.getItem(SYNC_STATE_KEY);if(r){const s=JSON.parse(r);if(!s||typeof s!=="object")throw new Error("bad");if(!s.applied)s.applied={};if(!s.effects)s.effects={};return s}}catch(e){}
+  return {applied:{},effects:{},backedUp:false};
+}
+function saveSyncState(st){try{localStorage.setItem(SYNC_STATE_KEY,JSON.stringify(st))}catch(e){}}
+function bumpVideos(delta){
+  const ds=S.sel;
+  const next=LockinSync.adjustManual(S.data,ds,delta);
+  if(next===S.data)return;
+  S.data=next;
+  if(ds===today())S.justChecked=delta>0?"on":"off";
+  save(S.data);render();
+}
+function disconnectSync(){
+  if(!confirm("Disconnect sync on this phone? Habits already saved stay."))return;
+  const st=loadSyncState();
+  delete st.readToken;
+  saveSyncState(st);
+  S.syncMsg="Disconnected. Saved habits were not changed.";
+  render();
+}
+async function connectSync(key){
+  key=String(key||"").trim();
+  if(!key){S.syncMsg="Paste the sync key first.";render();return}
+  S.syncMsg="Connecting\u2026";
+  if(!S.screen)render();
+  try{
+    const res=await fetch("/api/sync/connect",{method:"POST",headers:{Authorization:"Bearer "+key},cache:"no-store"});
+    if(res.status===401){S.syncMsg="That key was rejected. Nothing on this phone was changed.";if(!S.screen)render();return}
+    if(!res.ok){S.syncMsg="Couldn\u2019t reach sync. Nothing on this phone was changed.";if(!S.screen)render();return}
+    const body=await res.json();
+    if(!body.readToken){S.syncMsg="Sync didn\u2019t return a key. Nothing on this phone was changed.";if(!S.screen)render();return}
+    const st=loadSyncState();
+    st.readToken=body.readToken;
+    st.lastError=null;
+    saveSyncState(st);
+    S.syncMsg="Connected.";
+    await syncNow({silent:false});
+  }catch(e){
+    S.syncMsg="Couldn\u2019t reach sync. Nothing on this phone was changed.";
+    if(!S.screen)render();
+  }
+}
+async function syncNow(opts){
+  opts=opts||{};
+  const st=loadSyncState();
+  if(!st.readToken){
+    if(!opts.silent){S.syncMsg="Connect sync first.";if(!S.screen)render()}
+    return;
+  }
+  if(S.syncing)return;
+  S.syncing=true;
+  try{
+    let res;
+    try{
+      res=await fetch("/api/sync/events",{headers:{Authorization:"Bearer "+st.readToken},cache:"no-store"});
+    }catch(e){
+      saveSyncState(Object.assign({},st,{lastError:"offline"}));
+      S.syncMsg="Couldn\u2019t reach sync. Nothing on this phone was changed.";
+      if(!opts.silent&&!S.screen)render();
+      return;
+    }
+    if(!res.ok){
+      saveSyncState(Object.assign({},st,{lastError:"http "+res.status}));
+      S.syncMsg=res.status===401?"Sync key was rejected. Nothing on this phone was changed.":"Couldn\u2019t reach sync. Nothing on this phone was changed.";
+      if(!opts.silent&&!S.screen)render();
+      return;
+    }
+    let body={};
+    try{body=await res.json()}catch(e){body={}}
+    const plan=LockinSync.planSync(S.data,st,{ok:true,events:body.events||[]});
+    if(plan.backupFirst){
+      const ok=LockinSync.copyBackup(localStorage,SK,SK_BACKUP);
+      if(!ok){
+        S.syncMsg="Couldn\u2019t back up this phone before sync, so nothing was changed.";
+        if(!S.screen)render();
+        return;
+      }
+    }
+    if(plan.changed){
+      if(!save(plan.data)){
+        S.syncMsg="Couldn\u2019t save the sync onto this phone. Nothing was changed.";
+        if(!S.screen)render();
+        return;
+      }
+      S.data=plan.data;
+    }
+    const next=Object.assign({},plan.syncState||st);
+    next.lastSync=new Date().toISOString();
+    next.lastError=null;
+    if(plan.changed)next.backedUp=true;
+    saveSyncState(next);
+    const n=(plan.appliedIds||[]).length;
+    S.syncMsg=n?("Synced "+n+" update"+(n===1?"":"s")+"."):"Synced. Already up to date.";
+    if(!S.screen&&(plan.changed||!opts.silent))render();
+  }finally{S.syncing=false}
+}
+function bootSync(){
+  try{
+    const m=/^#sync=(.*)$/.exec(location.hash||"");
+    if(m){
+      const key=decodeURIComponent(m[1]);
+      try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}
+      connectSync(key);
+      return;
+    }
+  }catch(e){}
+  syncNow({silent:true});
+}
 function exp(d){const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download="happiness-"+today()+".json";a.click();URL.revokeObjectURL(u)}
 function imp(cb){const i=document.createElement("input");i.type="file";i.accept=".json";i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.goals&&d.habits){cb(d)}else alert("Invalid file.")}catch(er){alert("Error.")}};r.readAsText(f)};i.click()}
 
 // State
-let S={data:load(),sel:today(),tab:"today",period:"week",hf:"week",tCols:2,lb:null,modal:null,mf:{},screen:null,urge:null,timerInt:null,cinePics:[],cineFamily:[],cineIdx:0,cineTimer:null,med:null,medInt:null,lastPct:null,justChecked:null};
+let S={data:load(),sel:today(),tab:"today",period:"week",hf:"week",tCols:2,lb:null,modal:null,mf:{},screen:null,urge:null,timerInt:null,cinePics:[],cineFamily:[],cineIdx:0,cineTimer:null,med:null,medInt:null,lastPct:null,justChecked:null,syncMsg:null,syncing:false};
 // Determine opening screen: show decision if today has no choice yet
 (function(){const d=S.data.days[today()];if(!d||!d.choice)S.screen="decision"})();
 function set(u){Object.assign(S,u);render()}
@@ -777,7 +889,10 @@ function getDayPct(data,ds){
   const day=data.days[ds];
   if(day?.chilled)return 100;
   const habs=data.habits;if(!habs.length)return 0;
-  let done=0;for(const h of habs){if(day?.checks?.[h.id])done++}
+  let done=0;for(const h of habs){
+    if(h.id===LockinSync.VIDEO_HABIT){if(LockinSync.videoCount(day)>0)done++}
+    else if(day?.checks?.[h.id])done++
+  }
   return Math.round((done/habs.length)*100);
 }
 function getPeriodDates(ds,period){
@@ -790,6 +905,10 @@ function getPeriodDates(ds,period){
   return sprintDates();
 }
 function habitPeriodPct(data,hid,ds,period){
+  if(hid===LockinSync.VIDEO_HABIT){
+    const n=LockinSync.sprintVideoTotal(data,sprintDates());
+    return Math.min(100,Math.round((n/LockinSync.VIDEO_GOAL)*100));
+  }
   const dates=getPeriodDates(ds,period);
   const hab=data.habits.find(h=>h.id===hid);if(!hab)return 0;
   // How many weeks in period
@@ -1026,11 +1145,40 @@ function render(){
   o+='<button onclick="set({tab:\'season\'})" class="statpill" style="color:var(--muted)">\u{1F535} '+vc.build+' \u00B7 \u{1F534} '+vc.drift+'</button>';
   if(us.resisted>0)o+='<span class="statpill" style="color:var(--muted)">\u{1F6E1}\u{FE0F} '+us.resisted+' resisted</span>';
   if(streak>0)o+='<span class="statpill" style="color:#f59e0b;border-color:rgba(245,158,11,0.2)">\u{1F525} '+streak+'</span>';
+  o+='<span class="statpill" style="color:var(--muted)">\u{1F3AC} '+LockinSync.sprintVideoTotal(data,sprintDates())+'/'+LockinSync.VIDEO_GOAL+'</span>';
   o+='</div>';
 
   // Habits - flat list with goal tags
   o+='<div class="sec-label">Today</div>';
   data.habits.forEach((hab,hi)=>{
+    if(hab.id===LockinSync.VIDEO_HABIT){
+      const todayN=LockinSync.videoCount(data.days[sel]);
+      const sprintN=LockinSync.sprintVideoTotal(data,sprintDates());
+      const goal=LockinSync.VIDEO_GOAL;
+      const vPct=Math.min(100,Math.round((sprintN/goal)*100));
+      const vDone=sprintN>=goal;
+      const dis=chilled;
+      const hGoals=(hab.goalIds||[]).map(gid=>data.goals.find(g=>g.id===gid)).filter(Boolean);
+      o+='<div class="card'+(todayN>0?" done":"")+'" style="animation:fadeIn 0.3s ease '+(hi*0.03)+'s both;opacity:'+(dis?0.3:1)+'">';
+      o+='<div style="display:flex;align-items:center;gap:12px">';
+      o+='<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">';
+      o+='<button '+(dis?"disabled ":"")+'onclick="'+(dis?"":"bumpVideos(-1)")+'" style="width:26px;height:26px;border-radius:8px;border:1px solid var(--border2);background:var(--btn-bg);color:var(--dim);font-size:16px;font-weight:700;line-height:1">\u2212</button>';
+      o+='<div style="min-width:16px;text-align:center;font-size:14px;font-weight:800;color:var(--dim)">'+todayN+'</div>';
+      o+='<button '+(dis?"disabled ":"")+'onclick="'+(dis?"":"bumpVideos(1)")+'" style="width:26px;height:26px;border-radius:8px;border:1px solid var(--border2);background:var(--btn-bg);color:var(--dim);font-size:16px;font-weight:700;line-height:1">+</button>';
+      o+='</div>';
+      o+='<div style="flex:1"><span style="font-size:13px;font-weight:500;color:var('+(vDone?"--faint":"--dim")+');text-decoration:'+(vDone?"line-through":"none")+'">'+hab.emoji+' '+hab.label+'</span>';
+      if(hGoals.length){
+        o+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">';
+        hGoals.forEach(g=>{o+='<span style="font-size:9px;font-weight:700;color:var(--muted);background:var(--btn-bg);padding:2px 7px;border-radius:10px;border:1px solid var(--border)">'+g.emoji+' '+g.name+'</span>'});
+        o+='</div>';
+      }
+      o+='<div style="font-size:10px;color:var(--faint);margin-top:2px">Today: '+todayN+'</div></div>';
+      o+='<div style="text-align:right;flex-shrink:0"><div style="font-size:11px;font-weight:700;color:'+(vDone?"#10b981":"var(--muted)")+'">'+sprintN+'/'+goal+'</div>';
+      o+='<div style="font-size:9px;color:var(--ghost);font-weight:600">videos</div></div></div>';
+      o+='<div class="prog-bar" style="margin-top:8px"><div class="prog-fill" style="background:'+(vDone?"#10b981":"#a78bfa")+';width:'+vPct+'%"></div></div>';
+      o+='</div>';
+      return;
+    }
     const ck=checks[hab.id]||false;
     const wc=weekCount(data,hab.id,sel);
     const wPct=Math.min(100,Math.round((wc/hab.perWeek)*100));
@@ -1089,10 +1237,12 @@ function render(){
   let totalWeekPct=0,habitCount=0;
   const habitWeekScores=[];
   data.habits.forEach(h=>{
-    const wc=weekCount(data,h.id,sel);
-    const wp=Math.min(100,Math.round((wc/h.perWeek)*100));
+    const isVideo=h.id===LockinSync.VIDEO_HABIT;
+    const wc=isVideo?LockinSync.sprintVideoTotal(data,sprintDates()):weekCount(data,h.id,sel);
+    const target=isVideo?LockinSync.VIDEO_GOAL:h.perWeek;
+    const wp=Math.min(100,Math.round((wc/target)*100));
     totalWeekPct+=wp;habitCount++;
-    habitWeekScores.push({...h,wc,wp,goals:(h.goalIds||[]).map(gid=>data.goals.find(g=>g.id===gid)).filter(Boolean)});
+    habitWeekScores.push({...h,wc,wp,target,goals:(h.goalIds||[]).map(gid=>data.goals.find(g=>g.id===gid)).filter(Boolean)});
   });
   const overallWeekPct=habitCount>0?Math.round(totalWeekPct/habitCount):0;
   const gaugeColor=overallWeekPct>=75?"#10b981":overallWeekPct>=50?"#eab308":overallWeekPct>=25?"#f97316":"#64748b";
@@ -1145,8 +1295,14 @@ function render(){
     gHabs.forEach(h=>{
       const hp=habitPeriodPct(data,h.id,sel,period);
       o+='<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12px">';
-      o+='<span style="color:var(--muted)">'+h.emoji+' '+h.label+' <span style="color:var(--faint)">('+h.perWeek+'x/wk)</span></span>';
-      o+='<span style="font-weight:700;color:'+(hp>=75?"#10b981":"#888")+'">'+hp+'%</span></div>';
+      if(h.id===LockinSync.VIDEO_HABIT){
+        const n=LockinSync.sprintVideoTotal(data,sprintDates());
+        o+='<span style="color:var(--muted)">'+h.emoji+' '+h.label+' <span style="color:var(--faint)">(sprint)</span></span>';
+        o+='<span style="font-weight:700;color:'+(n>=LockinSync.VIDEO_GOAL?"#10b981":"#888")+'">'+n+'/'+LockinSync.VIDEO_GOAL+'</span></div>';
+      }else{
+        o+='<span style="color:var(--muted)">'+h.emoji+' '+h.label+' <span style="color:var(--faint)">('+h.perWeek+'x/wk)</span></span>';
+        o+='<span style="font-weight:700;color:'+(hp>=75?"#10b981":"#888")+'">'+hp+'%</span></div>';
+      }
     });
     o+='</div>';
   });
@@ -1199,20 +1355,24 @@ function render(){
     
     // Show top 3 struggling habits with specific advice
     struggling.slice(0,3).forEach(h=>{
-      const remaining=h.perWeek-h.wc;
+      const target=h.target||h.perWeek;
+      const remaining=target-h.wc;
       const goalName=h.goals?h.goals.map(g=>g.emoji+' '+g.name).join(', '):'';
       o+='<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--border)">';
       o+='<span style="font-size:18px;flex-shrink:0">'+h.emoji+'</span>';
       o+='<div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--dim)">'+h.label+'</div>';
       o+='<div style="font-size:11px;color:var(--muted);margin-top:2px">';
-      if(h.wc===0)o+='Haven\u2019t started yet \u2014 aim for at least '+Math.ceil(h.perWeek/2)+'x this week';
+      if(h.id===LockinSync.VIDEO_HABIT){
+        if(h.wc===0)o+='No videos yet \u2014 '+target+' across this sprint';
+        else o+=h.wc+'/'+target+' videos \u2014 '+remaining+' left in the sprint';
+      }else if(h.wc===0)o+='Haven\u2019t started yet \u2014 aim for at least '+Math.ceil(h.perWeek/2)+'x this week';
       else if(h.wp<50)o+='Only '+h.wc+'/'+h.perWeek+' this week \u2014 need '+remaining+' more to hit target';
       else o+='Almost there at '+h.wc+'/'+h.perWeek+' \u2014 just '+remaining+' more to go';
       o+='</div>';
       o+='<div style="font-size:10px;color:var(--faint);margin-top:2px">\u{2192} Goal: '+goalName+'</div>';
       o+='</div>';
       o+='<div style="flex-shrink:0;text-align:right"><div style="font-size:14px;font-weight:800;color:'+(h.wp>=50?"#eab308":"#ef4444")+'">'+h.wp+'%</div>';
-      o+='<div style="font-size:9px;color:var(--faint)">'+h.wc+'/'+h.perWeek+'</div></div></div>';
+      o+='<div style="font-size:9px;color:var(--faint)">'+h.wc+'/'+target+'</div></div></div>';
     });
 
     o+='</div>';
@@ -1222,7 +1382,7 @@ function render(){
       o+='<div class="card" style="margin-top:6px;background:linear-gradient(135deg,rgba(16,185,129,0.04),rgba(16,185,129,0.01));border-color:rgba(16,185,129,0.1)">';
       o+='<div style="font-size:12px;font-weight:700;color:#10b981;margin-bottom:6px">\u{2705} Nailing it:</div>';
       o+='<div style="font-size:12px;color:var(--muted);line-height:1.6">';
-      o+=killing.map(h=>h.emoji+' '+h.label+' ('+h.wc+'/'+h.perWeek+')').join(' \u{2022} ');
+      o+=killing.map(h=>h.emoji+' '+h.label+' ('+h.wc+'/'+(h.target||h.perWeek)+')').join(' \u{2022} ');
       o+='</div></div>';
     }
 
@@ -1374,7 +1534,8 @@ function render(){
   [{v:align+"%",l:"Alignment",c:align>=75?"#10b981":"var(--dim)"},
    {v:buildDays+" / "+ssi.day,l:"Build days",c:"#3b82f6"},
    {v:svc.build+" / "+svc.drift,l:"Build / Drift votes",c:"var(--dim)"},
-   {v:snic?snic.text:"\u2014",l:"Nicotine free",c:snic?"#10b981":"var(--ghost)"}].forEach(s=>{
+   {v:snic?snic.text:"\u2014",l:"Nicotine free",c:snic?"#10b981":"var(--ghost)"},
+   {v:LockinSync.sprintVideoTotal(data,sprintDates())+"/"+LockinSync.VIDEO_GOAL,l:"Videos",c:"#a78bfa"}].forEach(s=>{
     o+='<div class="card" style="padding:16px 14px"><div style="font-size:22px;font-weight:800;color:'+s.c+';line-height:1.1">'+s.v+'</div>';
     o+='<div style="font-size:10px;color:var(--faint);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:4px">'+s.l+'</div></div>';
   });
@@ -1389,7 +1550,9 @@ function render(){
 
   o+='<div class="sec-label">This season</div>';
   SEASON_GOALS.forEach(g=>{
-    o+='<div class="card" style="padding:13px 16px;font-size:14px;font-weight:600;color:var(--dim)">'+g+'</div>';
+    let label=g;
+    if(g.indexOf("Post 10 videos")!==-1)label=g+" \u00B7 "+LockinSync.sprintVideoTotal(data,sprintDates())+"/"+LockinSync.VIDEO_GOAL;
+    o+='<div class="card" style="padding:13px 16px;font-size:14px;font-weight:600;color:var(--dim)">'+label+'</div>';
   });
 
   if(snic){
@@ -1428,7 +1591,7 @@ function render(){
     o+='<div class="card" style="display:flex;align-items:center;gap:10px">';
     o+='<span style="font-size:18px">'+h.emoji+'</span>';
     o+='<div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--dim)">'+h.label+'</div>';
-    o+='<div style="font-size:10px;color:var(--faint)">'+gs.map(g=>g.emoji).join(' ')+' \u2022 '+h.perWeek+'x/wk'+(lh?' \u2022 \u{1F517} '+lh.emoji:'')+'</div></div>';
+    o+='<div style="font-size:10px;color:var(--faint)">'+gs.map(g=>g.emoji).join(' ')+' \u2022 '+(h.id===LockinSync.VIDEO_HABIT?LockinSync.VIDEO_GOAL+' videos':h.perWeek+'x/wk')+(lh?' \u2022 \u{1F517} '+lh.emoji:'')+'</div></div>';
     o+='<button onclick="set({modal:\'editHabit\',mf:{id:\''+h.id+'\',label:\''+h.label.replace(/'/g,"\\'")+'\',emoji:\''+h.emoji+'\',goalIds:'+JSON.stringify(h.goalIds||[])+',perWeek:'+h.perWeek+',linkedHabitId:\''+(h.linkedHabitId||'')+'\'}})" style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.15);color:#a78bfa;border-radius:8px;padding:6px 8px;font-size:11px;font-weight:700">\u{270F}\u{FE0F}</button>';
     o+='<button onclick="delHabit(\''+h.id+'\')" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);color:#ef4444;border-radius:8px;padding:6px 8px;font-size:11px;font-weight:700">\u{1F5D1}\u{FE0F}</button>';
     o+='</div>';
@@ -1531,6 +1694,27 @@ function render(){
     });
     o+='</div>';
   }
+
+  // Sync
+  o+='<div class="sec-label">\u{1F4E1} Sync</div>';
+  o+='<div class="card" style="padding:16px">';
+  const sst=loadSyncState();
+  if(sst.readToken){
+    const appliedN=Object.keys(sst.applied||{}).length;
+    let when="";
+    if(sst.lastSync){try{when="Last sync "+new Date(sst.lastSync).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+". "}catch(e){}}
+    o+='<div style="font-size:13px;font-weight:700;color:var(--dim);margin-bottom:6px">Connected</div>';
+    o+='<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">Updates merge into this phone. Days you already logged stay. '+when+appliedN+' applied.</div>';
+    if(S.syncMsg)o+='<div style="font-size:12px;color:var(--dim);margin-bottom:10px">'+S.syncMsg+'</div>';
+    o+='<button onclick="syncNow()" style="width:100%;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.35);color:#a78bfa;border-radius:10px;padding:12px;font-size:13px;font-weight:700;margin-bottom:8px">Sync now</button>';
+    o+='<button onclick="disconnectSync()" style="width:100%;background:var(--btn-bg);border:1px solid var(--border2);color:var(--muted);border-radius:10px;padding:12px;font-size:12px;font-weight:600">Disconnect</button>';
+  }else{
+    o+='<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">Paste the sync key once so this phone can pull updates. It stays on this phone. Nothing is sent until you connect.</div>';
+    if(S.syncMsg)o+='<div style="font-size:12px;color:var(--dim);margin-bottom:10px">'+S.syncMsg+'</div>';
+    o+='<input id="syncKey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Sync key" style="width:100%;background:var(--input-bg);border:1px solid var(--input-border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;font-family:inherit;margin-bottom:10px">';
+    o+='<button onclick="connectSync(document.getElementById(\'syncKey\').value)" style="width:100%;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.35);color:#a78bfa;border-radius:10px;padding:12px;font-size:13px;font-weight:700">Connect sync</button>';
+  }
+  o+='</div>';
 
   // Backup
   o+='<div class="sec-label">\u{1F4BE} Data</div>';
@@ -1753,6 +1937,7 @@ function celebrate(){
 applyTheme();
 setInterval(applyTheme,3600000);
 render();
+bootSync();
 </script>
 </body>
 </html>
