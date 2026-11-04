@@ -1,0 +1,12 @@
+# Static site at the repo root, plus the sync function.
+# No build command: index.html is the app. Netlify installs
+# package.json dependencies and bundles netlify/functions.
+[build]
+  publish = "."
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
